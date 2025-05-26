@@ -526,7 +526,7 @@
                 </div>
                 <div class="circle-inner">
                     <div class="mining-amount" id="miningAmount">0.00</div>
-                    <div class="mining-text">USDT Mined</div>
+                    <div class="mining-text">USDT Mined/min</div>
                     <div class="mining-time" id="miningTime">Not mining</div>
                 </div>
             </div>
@@ -655,6 +655,9 @@
         // Initialize transactions
         renderTransactions();
 
+        // Initialize values
+        updateMiningAmount();
+
         // Listen for storage changes from wallet page
         window.addEventListener('storage', function(e) {
             if (e.key === 'walletBalance') {
@@ -667,6 +670,10 @@
             }
             if (e.key === 'walletTransactions') {
                 transactions = JSON.parse(e.newValue);
+            }
+            if (e.key === 'miningData') {
+                miningData = JSON.parse(e.newValue);
+                updateMiningAmount();
             }
         });
 
@@ -729,6 +736,10 @@
                 const progress = Math.min((elapsed / totalTime) * 100, 100);
                 circleProgress.style.transform = `rotate(${progress * 3.6}deg)`;
                 
+                // Calculate and display the current mined amount
+                const currentAmount = (progress / 100) * REWARD_AMOUNT;
+                miningAmount.textContent = currentAmount.toFixed(2);
+                
                 // Update time remaining
                 const remaining = endTime - now;
                 if (remaining <= 0) {
@@ -755,6 +766,7 @@
             miningBtn.textContent = `Claim ${REWARD_AMOUNT.toFixed(2)} USDT`;
             miningBtn.disabled = false;
             miningTime.textContent = 'Mining complete!';
+            miningAmount.textContent = REWARD_AMOUNT.toFixed(2);
             
             // Clear mining state
             miningData.miningStartTime = null;
@@ -829,6 +841,10 @@
             });
         }
         
+        function updateMiningAmount() {
+            totalMined.textContent = miningData.minedAmount.toFixed(2) + ' USDT';
+        }
+        
         function addNotification(title, text) {
             const now = new Date();
             const notification = {
@@ -869,9 +885,6 @@
             notificationBadge.textContent = unreadCount;
             notificationBadge.style.display = unreadCount > 0 ? 'flex' : 'none';
         }
-
-        // Initialize values
-        totalMined.textContent = miningData.minedAmount.toFixed(2) + ' USDT';
     </script>
 </body>
 </html>
