@@ -548,14 +548,14 @@
             </div>
             <div class="stat-card">
                 <div class="stat-title">Mining Power</div>
-                <div class="stat-value">1.0x</div>
+                <div class="stat-value" id="miningPower">1.0x</div>
                 <div class="stat-change">
                     Basic level
                 </div>
             </div>
             <div class="stat-card">
                 <div class="stat-title">Next Reward</div>
-                <div class="stat-value">3.00 USDT</div>
+                <div class="stat-value" id="nextReward">3.00 USDT</div>
                 <div class="stat-change">
                     Every 24h
                 </div>
@@ -599,8 +599,9 @@
 
     <script>
         // Constants
-        const REWARD_AMOUNT = 3.00; // $3 reward per cycle
+        const BASE_REWARD_AMOUNT = 3.00; // Base $3 reward per cycle
         const MINING_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+        const MINING_POWER_INCREMENT = 0.12; // 0.12x increase per $50
 
         // Load wallet data from localStorage
         let walletBalance = parseFloat(localStorage.getItem('walletBalance')) || 0;
@@ -613,12 +614,26 @@
                 minedAmount: 0,
                 miningStartTime: null,
                 miningEndTime: null,
-                miningTransactions: []
+                miningTransactions: [],
+                miningPower: 1.0 // Base mining power
             }));
         }
 
         // Load mining data from localStorage
         let miningData = JSON.parse(localStorage.getItem('miningData'));
+
+        // Calculate mining power based on wallet balance (0.12x per $50)
+        function calculateMiningPower() {
+            const walletBalance = parseFloat(localStorage.getItem('walletBalance')) || 0;
+            const powerIncrement = Math.floor(walletBalance / 50) * MINING_POWER_INCREMENT;
+            return 1.0 + powerIncrement; // Base 1.0 + increments
+        }
+
+        // Calculate current reward amount (squared total mined)
+        function calculateRewardAmount() {
+            const baseReward = BASE_REWARD_AMOUNT * miningData.miningPower;
+            return Math.pow(baseReward, 2); // Square the reward
+        }
 
         // DOM Elements
         const themeToggle = document.getElementById('themeToggle');
@@ -631,6 +646,8 @@
         const miningAmount = document.getElementById('miningAmount');
         const miningTime = document.getElementById('miningTime');
         const totalMined = document.getElementById('totalMined');
+        const miningPower = document.getElementById('miningPower');
+        const nextReward = document.getElementById('nextReward');
         const transactionList = document.getElementById('transactionList');
         
         // Initialize theme from wallet page
@@ -644,7 +661,12 @@
         updateNotificationBadge();
         renderNotifications();
 
-        // Initialize mining state
+        // Initialize mining state and power
+        miningData.miningPower = calculateMiningPower();
+        localStorage.setItem('miningData', JSON.stringify(miningData));
+        miningPower.textContent = miningData.miningPower.toFixed(1) + 'x';
+        nextReward.textContent = calculateRewardAmount().toFixed(2) + ' USDT';
+
         if (miningData.miningStartTime && new Date(miningData.miningStartTime) < new Date() && 
             miningData.miningEndTime && new Date() < new Date(miningData.miningEndTime)) {
             startMining(new Date(miningData.miningStartTime), new Date(miningData.miningEndTime));
@@ -662,6 +684,11 @@
         window.addEventListener('storage', function(e) {
             if (e.key === 'walletBalance') {
                 walletBalance = parseFloat(e.newValue);
+                // Update mining power when wallet balance changes
+                miningData.miningPower = calculateMiningPower();
+                localStorage.setItem('miningData', JSON.stringify(miningData));
+                miningPower.textContent = miningData.miningPower.toFixed(1) + 'x';
+                nextReward.textContent = calculateRewardAmount().toFixed(2) + ' USDT';
             }
             if (e.key === 'notifications') {
                 notifications = JSON.parse(e.newValue);
@@ -719,7 +746,7 @@
                 localStorage.setItem('miningData', JSON.stringify(miningData));
                 
                 // Add notification
-                addNotification('Mining Started', `Your 24-hour mining cycle has begun!`);
+                addNotification('Mining Started', `Your 24-hour mining cycle has begun with ${miningData.miningPower.toFixed(1)}x power!`);
             }
         });
         
@@ -737,7 +764,7 @@
                 circleProgress.style.transform = `rotate(${progress * 3.6}deg)`;
                 
                 // Calculate and display the current mined amount
-                const currentAmount = (progress / 100) * REWARD_AMOUNT;
+                const currentAmount = (progress / 100) * calculateRewardAmount();
                 miningAmount.textContent = currentAmount.toFixed(2);
                 
                 // Update time remaining
@@ -763,10 +790,11 @@
         }
         
         function miningComplete() {
-            miningBtn.textContent = `Claim ${REWARD_AMOUNT.toFixed(2)} USDT`;
+            const rewardAmount = calculateRewardAmount();
+            miningBtn.textContent = `Claim ${rewardAmount.toFixed(2)} USDT`;
             miningBtn.disabled = false;
             miningTime.textContent = 'Mining complete!';
-            miningAmount.textContent = REWARD_AMOUNT.toFixed(2);
+            miningAmount.textContent = rewardAmount.toFixed(2);
             
             // Clear mining state
             miningData.miningStartTime = null;
@@ -774,13 +802,15 @@
             localStorage.setItem('miningData', JSON.stringify(miningData));
             
             // Add notification
-            addNotification('Mining Completed', `Your 24-hour mining cycle is complete. Claim your $${REWARD_AMOUNT.toFixed(2)} USDT now!`);
+            addNotification('Mining Completed', `Your 24-hour mining cycle is complete. Claim your $${rewardAmount.toFixed(2)} USDT now!`);
         }
         
         function claimReward() {
+            const rewardAmount = calculateRewardAmount();
+            
             // Add reward to both mined amount and wallet balance
-            miningData.minedAmount += REWARD_AMOUNT;
-            walletBalance += REWARD_AMOUNT;
+            miningData.minedAmount += rewardAmount;
+            walletBalance += rewardAmount;
             
             miningAmount.textContent = '0.00';
             totalMined.textContent = miningData.minedAmount.toFixed(2) + ' USDT';
@@ -798,8 +828,9 @@
             const now = new Date();
             const transaction = {
                 type: 'Mining Reward',
-                amount: REWARD_AMOUNT,
-                date: now.toLocaleString()
+                amount: rewardAmount,
+                date: now.toLocaleString(),
+                power: miningData.miningPower.toFixed(1) + 'x'
             };
             miningData.miningTransactions.unshift(transaction);
             localStorage.setItem('miningData', JSON.stringify(miningData));
@@ -807,7 +838,7 @@
             // Add transaction to wallet history
             const walletTransaction = {
                 type: 'Mining Reward',
-                amount: REWARD_AMOUNT,
+                amount: rewardAmount,
                 date: now.toLocaleString(),
                 direction: 'positive'
             };
@@ -817,7 +848,7 @@
             renderTransactions();
             
             // Add notification
-            addNotification('Reward Claimed', `You have successfully claimed $${REWARD_AMOUNT.toFixed(2)} USDT!`);
+            addNotification('Reward Claimed', `You have successfully claimed $${rewardAmount.toFixed(2)} USDT with ${miningData.miningPower.toFixed(1)}x mining power!`);
         }
         
         function renderTransactions() {
@@ -832,7 +863,7 @@
                 item.className = 'transaction-item';
                 item.innerHTML = `
                     <div class="transaction-details">
-                        <div class="transaction-type">${transaction.type}</div>
+                        <div class="transaction-type">${transaction.type} (${transaction.power})</div>
                         <div class="transaction-date">${transaction.date}</div>
                     </div>
                     <div class="transaction-amount">+${transaction.amount.toFixed(2)} USDT</div>
